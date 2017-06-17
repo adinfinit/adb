@@ -1,6 +1,7 @@
 <?php
 namespace adb;
 
+// is_iso8601 returns whether value is a valid ISO8601 date-time
 function is_iso8601($value): bool {
 	if(!is_string($value)){
 		return false;
@@ -11,6 +12,7 @@ function is_iso8601($value): bool {
 	return false;
 }
 
+// Entry is a general value that can be stored in a stream or blobstore
 class Entry {
 	var $id;
 	var $version;
@@ -19,6 +21,7 @@ class Entry {
 	var $type;
 	var $data;
 
+	// assign_object copies values from data
 	public function assign_object($data){
 		function prop($data, $name){
 			if(isset($data->$name)){
@@ -34,10 +37,12 @@ class Entry {
 		$this->data = prop($data, "data");
 	}
 
+	// is_full returns whether all fields have been correctly filled
 	public function is_full(): bool {
 		return isset($this->id, $this->version, $this->date, $this->meta, $this->type, $this->data) && $this->is_partial();
 	}
 
+	// is_partial returns whether filled fields are correct
 	public function is_partial(): bool {
 		return true &&
 			(!isset($this->id) || is_string($this->id)) &&
@@ -48,6 +53,7 @@ class Entry {
 			(!isset($this->data) || is_string($this->data));
 	}
 
+	// debug returns an array of validation errors
 	public function debug(): array {
 		$info = array();
 		function debug_info($prop, $value, $valid){
@@ -68,7 +74,8 @@ class Entry {
 		return $info;
 	}
 
-	public static function from_json_multiple($json): array {
+	// from_json_multiple returns an array of entries based on json string
+	public static function from_json_multiple(string $json): array {
 		$events = array();
 		$items = json_decode($json);
 		if(!isset($items)){
@@ -79,15 +86,19 @@ class Entry {
 		}
 		return $events;
 	}
-	public static function from_json($json): Entry {
+
+	// from_json returns single entry from json string
+	public static function from_json(string $json): Entry {
 		$arr = json_decode($json);
 		if($arr){
 			return Entry::from_object($arr);
 		}
 	}
-	public static function from_object($array): Entry {
+
+	// from_object returns single entry based on object data
+	public static function from_object($data): Entry {
 		$ev = new Entry();
-		$ev->assign_object($array);
+		$ev->assign_object($data);
 		return $ev;
 	}
 }
