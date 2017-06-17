@@ -1,6 +1,7 @@
 <?php
 namespace adb;
-require "adb.entry.php";
+
+require_once "adb.entry.php";
 
 class Stream {
 	var $stream;
