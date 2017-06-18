@@ -3,6 +3,7 @@ namespace adb;
 
 require_once "adb.entry.php";
 use Exception;
+use PDO;
 
 class InvalidEntry extends Exception {};
 class DatabaseException extends Exception {};
@@ -13,6 +14,10 @@ interface Store {
 
     public function upsert(Entry $entry);
     public function select(Entry $entry);
+}
+
+function formatError($pdo){
+	return ": " . join("; ", $pdo->errorInfo());
 }
 
 class PDOStore implements Store {
@@ -58,28 +63,45 @@ class PDOStore implements Store {
 
     	$stmt = $this->pdo->prepare($sql);
     	if(!$stmt->execute($entry->binding())){
-    		throw new DatabaseException("REPLACE INTO failed ($stmt->errno): $stmt->error");
+    		$error = formatError($stmt);
+    		throw new DatabaseException("REPLACE INTO failed $error");
     	}
     }
 
     public function select(Entry $template): array {
-        $sql = "SELECT (`id`, `version`, `date`, `meta`, `type`, `data`)\n\tFROM `$this->table`\n";
+        $sql = "SELECT `id`, `version`, `date`, `meta`, `type`, `data`\n  FROM `$this->table`\n";
 
         $binding = $template->binding();
 
         if(count($binding) != 0){
-        	$sql .= "WHERE\n";
-	        foreach($binding as $bindname){
-	        	$sql .= "\t$bindname = :$bindname\n";
+        	$sql .= "  WHERE ";
+        	$first = true;
+	        foreach($binding as $bindname => $bindvalue){
+	        	if($first) {
+	        		$sql .= "$bindname = :$bindname\n";
+	        		$first = false;
+	        	} else {
+	        		$sql .= "   AND $bindname = :$bindname\n";
+	        	}
 	        }
 	    }
 
         $stmt = $this->pdo->prepare($sql);
         if(!$stmt->execute($binding)){
-        	throw new DatabaseException("SELECT failed ($stmt->errno): $stmt->error");
+        	$error = formatError($stmt);
+        	throw new DatabaseException("SELECT failed $error");
         }
 
-        return array();
+        $entries = array();
+        while($row = $stmt->fetch(PDO::FETCH_ASSOC)){
+        	$entry = new Entry();
+        	$entry->unbind($row);
+        	$entries[] = $entry;
+        }
+
+        $stmt->closeCursor();
+
+        return $entries;
     }
 }
 

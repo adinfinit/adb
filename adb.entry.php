@@ -37,12 +37,19 @@ function uuid_to_binary(string $uuid) {
 
 function binary_to_uuid($binary): string {
 	$value = unpack("h*", $binary);
-	return preg_replace("/([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})/", "$1-$2-$3-$4-$5", $value);
+	$value = preg_replace("/([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})/", "$1-$2-$3-$4-$5", $value);
+	return $value[1];
 }
 
 function get_ifset($data, string $prop) {
-	if(isset($data->$prop)){
-		return $data->$prop;
+	if(is_array($data)){
+		if(isset($data[$prop])){
+			return $data[$prop];
+		}
+	} else {
+		if(isset($data->$prop)){
+			return $data->$prop;
+		}
 	}
 }
 
@@ -101,13 +108,24 @@ class Entry {
 
 	public function binding(): array {
 		$bind = array();
-		isset($this->id) && is_uuid($this->id) && ($bind["id"] = uuid_to_binary($this->id));
-		isset($this->version) && is_int($this->version) && ($bind["version"] = $this->version);
-		isset($this->date) && is_iso8601($this->date) && ($bind["date"] = $this->date);
-		isset($this->meta) && is_json($this->meta) && ($bind["meta"] = json_encode($this->meta));
-		isset($this->type) && is_string($this->type) && ($bind["type"] = $this->type);
-		isset($this->data) && is_json($this->data) && ($bind["data"] = json_encode($this->data));
+		isset($this->id) && ($bind["id"] = uuid_to_binary($this->id));
+		isset($this->version) && ($bind["version"] = $this->version);
+		isset($this->date) && ($bind["date"] = $this->date);
+		isset($this->meta) && ($bind["meta"] = json_encode($this->meta));
+		isset($this->type) && ($bind["type"] = $this->type);
+		isset($this->data) && ($bind["data"] = json_encode($this->data));
 		return $bind;
+	}
+
+	public function unbind($data) {
+		$this->assign_object(array(
+			"id" => binary_to_uuid($data["id"]),
+			"version" => $data["version"],
+			"date" => $data["date"],
+			"meta" => json_decode($data["meta"], false),
+			"type" => $data["type"],
+			"data" => json_decode($data["data"], false)
+		));
 	}
 
 	// debug returns an array of validation errors
@@ -137,7 +155,7 @@ class Entry {
 	// from_json_multiple returns an array of entries based on json string
 	public static function from_json_multiple(string $json): array {
 		$events = array();
-		$items = json_decode($json, false, 512);
+		$items = json_decode($json, false);
 		if(!isset($items)){
 			return null;
 		}
@@ -149,7 +167,7 @@ class Entry {
 
 	// from_json returns single entry from json string
 	public static function from_json(string $json): Entry {
-		$arr = json_decode($json, false, 512);
+		$arr = json_decode($json, false);
 		if($arr){
 			return Entry::from_object($arr);
 		}
