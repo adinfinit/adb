@@ -12,11 +12,13 @@ function is_iso8601($value): bool {
 	return false;
 }
 
-function is_json_string($value): bool {
-	if(!is_string($value)){
+function is_json($value): bool {
+	if(!is_object($value)){
 		return false;
 	}
-	return isset(json_decode($value));
+
+	$data = json_encode($value);
+	return isset($data);
 }
 
 function is_uuid(string $value): bool {
@@ -38,6 +40,30 @@ function binary_to_uuid($binary): string {
 	return preg_replace("/([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})/", "$1-$2-$3-$4-$5", $value);
 }
 
+function get_ifset($data, string $prop) {
+	if(isset($data->$prop)){
+		return $data->$prop;
+	}
+}
+
+function check_as_detailed(array &$info, string $prop, $value, bool $valid){
+	if(!isset($value)){
+		$info[$prop] = array("error"=>"missing");
+	} else if(!$valid){
+		$info[$prop] = array("value"=>$value, "error"=>"invalid");
+	} else {
+		$info[$prop] = array("value"=>$value);
+	}
+}
+
+function check_as_string(array &$info, string $prop, $value, bool $valid) {
+	if(!isset($value)){
+		$info[] = "missing " . $prop;
+	} else if(!$valid){
+		$info[] = "invalid " . $prop;
+	}
+}
+
 // Entry is a general value that can be stored in a stream or blobstore
 class Entry {
 	var $id;
@@ -49,18 +75,12 @@ class Entry {
 
 	// assign_object copies values from data
 	public function assign_object($data){
-		function prop($data, $name){
-			if(isset($data->$name)){
-				return $data->$name;
-			}
-		}
-
-		$this->id = prop($data, "id");
-		$this->version = prop($data, "version");
-		$this->date = prop($data, "date");
-		$this->meta = prop($data, "meta");
-		$this->type = prop($data, "type");
-		$this->data = prop($data, "data");
+		$this->id = get_ifset($data, "id");
+		$this->version = get_ifset($data, "version");
+		$this->date = get_ifset($data, "date");
+		$this->meta = get_ifset($data, "meta");
+		$this->type = get_ifset($data, "type");
+		$this->data = get_ifset($data, "data");
 	}
 
 	// is_full returns whether all fields have been correctly filled
@@ -74,38 +94,52 @@ class Entry {
 			(!isset($this->id) || is_uuid($this->id)) &&
 			(!isset($this->version) || is_int($this->version)) &&
 			(!isset($this->date) || is_iso8601($this->date)) &&
-			(!isset($this->meta) || is_json_string($this->meta)) &&
+			(!isset($this->meta) || is_json($this->meta)) &&
 			(!isset($this->type) || is_string($this->type)) &&
-			(!isset($this->data) || is_json_string($this->data));
+			(!isset($this->data) || is_json($this->data));
+	}
+
+	public function binding(): array {
+		$bind = array();
+		isset($this->id) && is_uuid($this->id) && ($bind["id"] = uuid_to_binary($this->id));
+		isset($this->version) && is_int($this->version) && ($bind["version"] = $this->version);
+		isset($this->date) && is_iso8601($this->date) && ($bind["date"] = $this->date);
+		isset($this->meta) && is_json($this->meta) && ($bind["meta"] = json_encode($this->meta));
+		isset($this->type) && is_string($this->type) && ($bind["type"] = $this->type);
+		isset($this->data) && is_json($this->data) && ($bind["data"] = json_encode($this->data));
+		return $bind;
 	}
 
 	// debug returns an array of validation errors
 	public function debug(): array {
 		$info = array();
-		function debug_info($prop, $value, $valid){
-			if(!isset($value)){
-				return array("error"=>"missing");
-			}
-			if(!$valid){
-				return array("value"=>$value, "error"=>"invalid");
-			}
-			return array("value"=>$value);
-		}
-		$info["id"] = debug_info("id", $this->id, is_uuid($this->id));
-		$info["version"] = debug_info("version", $this->version, is_int($this->version));
-		$info["date"] = debug_info("date", $this->date, is_iso8601($this->date));
-		$info["meta"] = debug_info("meta", $this->meta, is_json_string($this->meta));
-		$info["type"] = debug_info("type", $this->type, is_string($this->type));
-		$info["data"] = debug_info("data", $this->data, is_json_string($this->data));
+		check_as_detailed($info, "id", $this->id, is_uuid($this->id));
+		check_as_detailed($info, "version", $this->version, is_int($this->version));
+		check_as_detailed($info, "date", $this->date, is_iso8601($this->date));
+		check_as_detailed($info, "meta", $this->meta, is_json($this->meta));
+		check_as_detailed($info, "type", $this->type, is_string($this->type));
+		check_as_detailed($info, "data", $this->data, is_json($this->data));
 		return $info;
+	}
+
+	// debug returns an array of validation errors
+	public function info(): string {
+		$info = array();
+		check_as_string($info, "id", $this->id, is_uuid($this->id));
+		check_as_string($info, "version", $this->version, is_int($this->version));
+		check_as_string($info, "date", $this->date, is_iso8601($this->date));
+		check_as_string($info, "meta", $this->meta, is_json($this->meta));
+		check_as_string($info, "type", $this->type, is_string($this->type));
+		check_as_string($info, "data", $this->data, is_json($this->data));	
+		return join(", ", $info);
 	}
 
 	// from_json_multiple returns an array of entries based on json string
 	public static function from_json_multiple(string $json): array {
 		$events = array();
-		$items = json_decode($json);
+		$items = json_decode($json, false, 512);
 		if(!isset($items)){
-			return;
+			return null;
 		}
 		foreach ($items as $item) {
 			$events[] = Entry::from_object($item);
@@ -115,7 +149,7 @@ class Entry {
 
 	// from_json returns single entry from json string
 	public static function from_json(string $json): Entry {
-		$arr = json_decode($json);
+		$arr = json_decode($json, false, 512);
 		if($arr){
 			return Entry::from_object($arr);
 		}
