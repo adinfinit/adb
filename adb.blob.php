@@ -27,7 +27,7 @@ function formatError($pdo){
 class PDOStore extends PDOTable implements Store{
 
 	function __construct($pdo, $name){
-		parent::__construct($pdo, $name, "blob_" . $name);
+		parent::__construct($pdo, $name, "blob/" . $name);
 	}
 
 	public function upsert(Entry $entry) {
