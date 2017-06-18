@@ -118,14 +118,12 @@ class Entry {
 	}
 
 	public function unbind($data) {
-		$this->assign_object(array(
-			"id" => binary_to_uuid($data["id"]),
-			"version" => $data["version"],
-			"date" => $data["date"],
-			"meta" => json_decode($data["meta"], false),
-			"type" => $data["type"],
-			"data" => json_decode($data["data"], false)
-		));
+		$this->id = binary_to_uuid($data["id"]);
+		$this->version = $data["version"];
+		$this->date = $data["date"];
+		$this->meta = json_decode($data["meta"], false);
+		$this->type = $data["type"];
+		$this->data = json_decode($data["data"], false);
 	}
 
 	// debug returns an array of validation errors

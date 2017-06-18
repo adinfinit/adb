@@ -48,21 +48,37 @@ $c = adb\Entry::from_json('{
 
 $store->upsert($a);
 $store->upsert($b1);
-$store->upsert($b2);
 $store->upsert($c);
 
-function test_select($store, $template){
+function test_select($store, $expected_count, $template){
 	echo "= SELECT = " . $template . "\n";
+
 	$entries = $store->select(adb\Entry::from_json($template));
 	foreach($entries as $index => $entry){
 		echo " $index :" . json_encode($entry) . "\n";
 	}
+	
+	$count = count($entries);
+	if($count != $expected_count){
+		throw new Exception("expected $expected_count got $count");
+	}
 }
 
-test_select($store, '{}');
-test_select($store, '{"id": "AAAAAAAA-0000-0000-0000-000000000000"}');
-test_select($store, '{"id": "BBBBBBBB-0000-0000-0000-000000000000"}');
-test_select($store, '{"type": "note"}');
-test_select($store, '{"version": 20}');
+test_select($store, 3, '{}');
+test_select($store, 1, '{"id": "AAAAAAAA-0000-0000-0000-000000000000"}');
+test_select($store, 2, '{"type": "note"}');
+test_select($store, 2, '{"version": 20}');
+
+$store->begin();
+$store->upsert($b2);
+$store->rollback();
+
+test_select($store, 2, '{"version": 20}');
+
+$store->begin();
+$store->upsert($b2);
+$store->commit();
+
+test_select($store, 3, '{"version": 20}');
 
 ?>
