@@ -47,6 +47,8 @@ class PDOStore extends PDOTable implements Store{
 			$error = formatError($stmt);
 			throw new DatabaseException("REPLACE INTO failed $error");
 		}
+
+		return $stmt->rowCount();
 	}
 
 	public function delete(Entry $template) {
@@ -59,6 +61,8 @@ class PDOStore extends PDOTable implements Store{
 			$error = formatError($stmt);
 			throw new DatabaseException("DELETE failed $error");
 		}
+
+		return $stmt->rowCount();
 	}
 
 	public function deleteOne(Entry $template) {
@@ -75,7 +79,7 @@ class PDOStore extends PDOTable implements Store{
 			throw new DatabaseException("DELETE failed $error");
 		}
 
-		if($this->rowCount() > 1){
+		if($stmt->rowCount() > 1){
 			$this->rollback();
 			throw new DatabaseException("DELETE failed, too many rows");
 		}

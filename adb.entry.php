@@ -21,7 +21,7 @@ function is_json($value): bool {
 	return isset($data);
 }
 
-function is_uuid(string $value): bool {
+function is_uuid($value): bool {
 	if(!is_string($value)){
 		return false;
 	}

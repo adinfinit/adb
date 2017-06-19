@@ -6,9 +6,9 @@ if($_SERVER['REQUEST_METHOD'] != "POST"){
 }
 
 $input = file_get_contents('php://input');
-$requests = json_decode($input);
+$body = json_decode($input);
 
-if(!isset($requests)){
+if(!isset($body) || !isset($body->method) || !isset($body->data)){
 	http_response_code(400);
 	die("invalid request body");
 }
@@ -32,77 +32,112 @@ if($backend != "store"){
 require_once "adb.php";
 require_once "../db.config.php";
 
+class RequestFailed extends Exception {
+	var $path;
+	var $title;
+	var $details;
+
+	public function __construct($path, $title, $details){
+		$this->path = $path;
+		$this->title = $title;
+		$this->details = $details;
+	}
+}
+
+function process($store, $path, $request) {
+	try {
+		switch($request->method){
+		case "transaction":
+			$store->begin();
+			try {
+				$results = array();
+				foreach($request->data as $index => $request) {
+					$results[] = process($store, $path . "data/$index/", $request);
+				}
+				$store->commit();
+				return array(
+					"method" => "transaction",
+					"data" => $results
+				);
+			} catch (Exception $e) {
+				$store->rollback();
+				throw $e;
+			}
+
+			break;
+		case "insert":
+			$entry = adb\Entry::from_object($request->data);
+			if(!$entry->is_full()){
+				throw new RequestFailed($path, "invalid entry", $entry->debug());
+			}
+
+			return array(
+				"method" => "insert",
+				"data" => $store->upsert($entry)
+			);
+		case "select":
+			$entry = adb\Entry::from_object($request->data);
+			if(!$entry->is_partial()){
+				throw new RequestFailed($path, "invalid entry", $entry->debug());
+			}
+
+			return array(
+				"method" => "select",
+				"data" => $store->select($entry)
+			);
+		case "delete":
+			$entry = adb\Entry::from_object($request->data);
+			if(!$entry->is_partial()){
+				throw new RequestFailed($path, "invalid entry", $entry->debug());
+			}
+
+			return array(
+				"method" => "delete",
+				"data" => $store->delete($entry)
+			);
+		default:
+			throw new Exception("unknown method " . $request->method);
+		}
+	} catch (RequestFailed $e){
+		throw $e;
+	} catch (Exception $e) {
+		throw new RequestFailed($path, $e->getMessage(), $request);
+	}
+}
+
 try {
 	$store = new adb\PDOStore($db, $name);
-	$store->begin();
-
-	$results = array();
-	foreach($requests as $request){
-		$entry = new adb\Entry();
-		$entry->from_object($request->data);
-
-		switch($request->type){
-		case "insert":
-			if(!$entry->is_full()){
-				
-				header('Content-Type: application/json');
-				http_response_code(400);
-				$results[] = array(
-					"error" => "invalid entry",
-					"details" => $entry->debug()
-				);
-
-				echo json_encode($results);
-				
-				$store->rollback();
-				die();
-			}
-
-			$store->insert($entry);
-
-			break;
-		case "select":
-			if(!$entry->is_partial()){
-				header('Content-Type: application/json');
-				http_response_code(400);
-				$results[] = array(
-					"error" => "invalid entry",
-					"details" => $entry->debug()
-				);
-
-				echo json_encode($results);
-
-				$store->rollback();
-				die();
-			}
-
-			break;
-		case "delete":
-			if(!$entry->is_partial()){
-				header('Content-Type: application/json');
-				http_response_code(400);
-				$results[] = array(
-					"error" => "invalid entry",
-					"details" => $entry->debug()
-				);
-
-				echo json_encode($results);
-
-				$store->rollback();
-				die();
-			}
-
-
-
-			break;
-		}
-	}
-
-	$store->commit();
-} catch(Exception $e) {
-	$store->rollback();
+	$response = process($store, "/", $body);
+	
+	http_response_code(200);
+	header('Content-Type: application/json');
+	echo json_encode($response);
+	die();
+	
+} catch (RequestFailed $e) {
+	http_response_code(400);
+	header('Content-Type: application/json');
+	$response = array(
+		"errors" => array(
+			array(
+				"title" => $e->title,
+				"source" => array("pointer" => $e->path),
+				"meta" => $e->details
+			)
+		)
+	);
+	echo json_encode($response);
+	die();
+} catch (Exception $e) {
 	http_response_code(500);
-	die("exception " . $e->getMessage());
+	header('Content-Type: application/json');
+	$response = array(
+		"errors" => array(
+			array("title" => $e->getMessage())
+		)
+	);
+	echo json_encode($response);
+	die();
 }
 
 ?>
