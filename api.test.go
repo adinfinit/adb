@@ -7,7 +7,11 @@ import (
 	"strings"
 )
 
-const Prefix = "http://localhost"
+const (
+	Prefix = "http://localhost"
+	User   = "user"
+	Pass   = "pass"
+)
 
 type Entry struct {
 	ID      string                 `json:"id,omitempty"`
@@ -27,7 +31,14 @@ func StoreRequest(name, store, data string) {
 	fmt.Println("=== CASE " + name)
 	url := Prefix + "/store/" + store
 
-	resp, err := http.Post(url, "application/json", strings.NewReader(data))
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(data))
+	if err != nil {
+		panic(err)
+	}
+
+	req.SetBasicAuth(User, Pass)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println("Failed POST:", err)
 		return

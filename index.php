@@ -1,5 +1,14 @@
 <?php
 
+require_once "config.php";
+
+$user = $_SERVER['PHP_AUTH_USER'];
+$pass = $_SERVER['PHP_AUTH_PW'];
+if(!trusted_user($user, $pass)){
+  http_response_code(401);
+  die("unauthorized `$user`");
+}
+
 if($_SERVER['REQUEST_METHOD'] != "POST"){
 	http_response_code(405);
 	die("invalid method");
@@ -30,7 +39,6 @@ if($backend != "store"){
 }
 
 require_once "adb.php";
-require_once "../config.php";
 
 $db = new PDO("mysql:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASS);
 
@@ -109,6 +117,7 @@ function process($store, $path, $request) {
 
 try {
 	$store = new adb\PDOStore($db, $name);
+	$store->ensure();
 	$response = process($store, "/", $body);
 	
 	http_response_code(200);
