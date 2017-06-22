@@ -1,7 +1,7 @@
 <?php
 namespace adb;
 
-require_once "adb.entry.php";
+require_once "entry.php";
 
 use Exception;
 use PDO;

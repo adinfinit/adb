@@ -2,11 +2,16 @@
 
 require_once "config.php";
 
+if(!isset($_SERVER['PHP_AUTH_USER'])){
+	http_response_code(401);
+	die("unauthorized");
+}
+
 $user = $_SERVER['PHP_AUTH_USER'];
 $pass = $_SERVER['PHP_AUTH_PW'];
 if(!trusted_user($user, $pass)){
-  http_response_code(401);
-  die("unauthorized `$user`");
+	http_response_code(401);
+	die("unauthorized `$user`");
 }
 
 if($_SERVER['REQUEST_METHOD'] != "POST"){
@@ -38,7 +43,7 @@ if($backend != "store"){
 	die("invalid backend " . $backend . " for " . $name);
 }
 
-require_once "adb.php";
+require_once "adb/adb.php";
 
 $db = new PDO("mysql:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASS);
 
