@@ -30,7 +30,9 @@ if($backend != "store"){
 }
 
 require_once "adb.php";
-require_once "../db.config.php";
+require_once "../config.php";
+
+$db = new PDO("mysql:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASS);
 
 class RequestFailed extends Exception {
 	var $path;
